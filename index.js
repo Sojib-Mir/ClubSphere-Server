@@ -171,12 +171,12 @@ async function run() {
     });
 
     // get all single plants from db
-    app.get("/plants/:id", async (req, res) => {
-      const id = req.params.id;
-      const objectId = { _id: new ObjectId(id) };
-      const result = await plantsCollection.findOne(objectId);
-      res.send(result);
-    });
+    // app.get("/plants/:id", async (req, res) => {
+    //   const id = req.params.id;
+    //   const objectId = { _id: new ObjectId(id) };
+    //   const result = await plantsCollection.findOne(objectId);
+    //   res.send(result);
+    // });
 
     // get all orders for a customer by email
     app.get("/my-orders", verifyJWT, async (req, res) => {
