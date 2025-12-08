@@ -49,7 +49,9 @@ async function run() {
     const db = client.db("clubSphere_db");
     const usersCollection = db.collection("users");
     const eventsCollection = db.collection("events");
+    const clubsCollection = db.collection("clubs");
     const managerRequestsCollection = db.collection("managerRequests");
+    const paymentsCollection = db.collection("payments");
 
     //-------Role Middleware-------\\
     // admin's middleware
@@ -77,104 +79,143 @@ async function run() {
     // };
 
     //------- Payment Related Apis --------//
-    app.post("/create-checkout-session", async (req, res) => {
-      const paymentInfo = req.body;
+    // app.post("/create-checkout-session", async (req, res) => {
+    //   const paymentInfo = req.body;
 
-      console.log("Payment info=====>", paymentInfo);
+    //   console.log("Payment info=====>", paymentInfo);
 
-      const session = await stripe.checkout.sessions.create({
-        line_items: [
-          {
-            price_data: {
-              currency: "usd",
-              product_data: {
-                name: paymentInfo?.name,
-                description: paymentInfo?.description,
-                images: [paymentInfo?.image],
-              },
-              unit_amount: paymentInfo?.price * 100,
-            },
-            quantity: paymentInfo?.quantity,
-          },
-        ],
-        customer_email: paymentInfo?.customer?.email,
-        mode: "payment",
-        metadata: {
-          plantId: paymentInfo?.plantId,
-          customer: paymentInfo?.customer.email,
-        },
-        success_url: `${process.env.CLIENT_DOMAIN}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${process.env.CLIENT_DOMAIN}/plant/${paymentInfo?.plantId}`,
-      });
+    //   const session = await stripe.checkout.sessions.create({
+    //     line_items: [
+    //       {
+    //         price_data: {
+    //           currency: "usd",
+    //           product_data: {
+    //             name: paymentInfo?.clubName,
+    //             images: [paymentInfo?.bannerImage],
+    //           },
+    //           unit_amount: paymentInfo?.membershipFee * 100,
+    //         },
+    //         quantity: paymentInfo?.quantity,
+    //       },
+    //     ],
+    //     customer_email: paymentInfo?.customer?.email,
+    //     mode: "payment",
+    //     metadata: {
+    //       clubId: paymentInfo?.clubId,
+    //       customer: paymentInfo?.customer.email,
+    //     },
+    //     success_url: `${process.env.CLIENT_DOMAIN}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+    //     cancel_url: `${process.env.CLIENT_DOMAIN}/clubs/${paymentInfo?.clubId}`,
+    //   });
 
-      res.send({ url: session.url });
-    });
-
-    // payment-success post api
-    app.post("/payment-success", async (req, res) => {
-      const { sessionId } = req.body;
-      const session = await stripe.checkout.sessions.retrieve(sessionId);
-
-      const objectId = { _id: new ObjectId(session.metadata.plantId) };
-      const plant = await plantsCollection.findOne(objectId);
-      const updateQuantity = {
-        $inc: { quantity: -1 },
-      };
-
-      const order = await ordersCollection.findOne({
-        transactionId: session.payment_intent,
-      });
-
-      if (session.status === "complete" && plant && !order) {
-        const orderInfo = {
-          plantId: session.metadata.plantId,
-          transactionId: session.payment_intent,
-          customer: session.metadata.customer,
-          status: "pending",
-          seller: plant?.seller,
-          name: plant?.name,
-          category: plant?.category,
-          image: plant?.image,
-          quantity: 1,
-          price: session.amount_total / 100,
-        };
-
-        const res = await ordersCollection.insertOne(orderInfo);
-
-        // update plant quantity
-        await plantsCollection.updateOne(objectId, updateQuantity);
-
-        return res.send({
-          transactionId: session.payment_intent,
-          orderId: res.insertedId,
-        });
-      }
-
-      return res.send({
-        transactionId: session.payment_intent,
-        orderId: order._id,
-      });
-    });
-
-    //------- Plant Upload Apis --------//
-    // app.post("/plants", verifyJWT, verifySELLER, async (req, res) => {
-    //   const plantData = req.body;
-    //   console.log(plantData);
-    //   const result = await plantsCollection.insertOne(plantData);
-    //   res.send(result);
+    //   res.send({ url: session.url });
     // });
 
-    // get all plants from db
-    app.get("/plants", async (req, res) => {
-      const result = await plantsCollection.find().toArray();
+    // payment-success post api
+    // app.post("/payment-success", async (req, res) => {
+    //   const { sessionId } = req.body;
+    //   console.log("Received Session ID:", sessionId);
+
+    //   try {
+    //     const session = await stripe.checkout.sessions.retrieve(sessionId);
+    //     const clubIdString = session.metadata.clubId;
+    //     if (!clubIdString) {
+    //       return res
+    //         .status(400)
+    //         .send({ message: "Club ID missing in session metadata." });
+    //     }
+    //     const clubFilter = { _id: new ObjectId(clubIdString) };
+    //     const club = await clubsCollection.findOne(clubFilter);
+    //     if (!club) {
+    //       console.error(`Club not found for ID: ${clubIdString}`);
+    //       return res
+    //         .status(404)
+    //         .send({ message: "Club not found in database." });
+    //     }
+    //     const transactionId = session.payment_intent;
+    //     const existingPayment = await paymentsCollection.findOne({
+    //       transactionId,
+    //     });
+    //     const updateMembersCount = {
+    //       $inc: { membersCount: 1 },
+    //     };
+
+    //     if (session.status === "complete") {
+    //       if (existingPayment) {
+    //         return res.send({
+    //           transactionId,
+    //           message: "Payment already recorded (Idempotency check).",
+    //         });
+    //       }
+
+    //       const payInfo = {
+    //         clubId: clubIdString,
+    //         transactionId,
+    //         customer: session.metadata.customer,
+    //         status: "paid",
+    //         name: club.clubName,
+    //         image: club.bannerImage,
+    //         quantity: 1,
+    //         price: session.amount_total / 100,
+    //         paymentDate: new Date(),
+    //       };
+
+    //       try {
+    //         const insertResult = await paymentsCollection.insertOne(payInfo);
+    //         await clubsCollection.updateOne(clubFilter, updateMembersCount);
+    //         return res.send({
+    //           transactionId,
+    //           orderId: insertResult.insertedId,
+    //           message:
+    //             "Payment recorded and club membership updated successfully.",
+    //         });
+    //       } catch (mongoError) {
+    //         if (mongoError.code === 11000) {
+    //           console.warn(
+    //             `Blocked duplicate transaction (E11000): ${transactionId}`
+    //           );
+    //           return res.send({
+    //             transactionId,
+    //             message:
+    //               "Payment already recorded (Duplicate call blocked by DB index).",
+    //           });
+    //         }
+    //         throw mongoError;
+    //       }
+    //     }
+    //     // pay error
+    //     return res.send({
+    //       transactionId,
+    //       message: "Payment not complete.",
+    //     });
+    //   } catch (error) {
+    //     console.error("Payment Success API Error:", error);
+    //     return res.status(500).send({
+    //       message: "Internal server error during payment processing.",
+    //     });
+    //   }
+    // });
+
+    //------- All ClubsApis --------//
+    // create clubs
+    app.post("/clubs", async (req, res) => {
+      const plantData = req.body;
+      console.log(plantData);
+      const result = await clubsCollection.insertOne(plantData);
       res.send(result);
     });
 
-    // get all single plants from db
-    // app.get("/plants/:id", async (req, res) => {
+    // get all clubs from db
+    // app.get("/clubs", async (req, res) => {
+    //   const result = await clubsCollection.find().toArray();
+    //   res.send(result);
+    // });
+
+    // get all single club from db
+    // app.get("/clubs/:id", async (req, res) => {
     //   const id = req.params.id;
     //   const objectId = { _id: new ObjectId(id) };
-    //   const result = await plantsCollection.findOne(objectId);
+    //   const result = await clubsCollection.findOne(objectId);
     //   res.send(result);
     // });
 
@@ -297,9 +338,9 @@ async function run() {
 run().catch(console.dir);
 
 app.get("/", (req, res) => {
-  res.send("Plant Server is Running....");
+  res.send("Club Server is Running....");
 });
 
 app.listen(port, () => {
-  console.log(`Plant Server is running on port ${port}`);
+  console.log(`Club Server is running on port ${port}`);
 });
