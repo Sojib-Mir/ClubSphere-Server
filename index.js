@@ -79,122 +79,122 @@ async function run() {
     // };
 
     //------- Payment Related Apis --------//
-    // app.post("/create-checkout-session", async (req, res) => {
-    //   const paymentInfo = req.body;
+    app.post("/create-checkout-session", async (req, res) => {
+      const paymentInfo = req.body;
 
-    //   console.log("Payment info=====>", paymentInfo);
+      console.log("Payment info=====>", paymentInfo);
 
-    //   const session = await stripe.checkout.sessions.create({
-    //     line_items: [
-    //       {
-    //         price_data: {
-    //           currency: "usd",
-    //           product_data: {
-    //             name: paymentInfo?.clubName,
-    //             images: [paymentInfo?.bannerImage],
-    //           },
-    //           unit_amount: paymentInfo?.membershipFee * 100,
-    //         },
-    //         quantity: paymentInfo?.quantity,
-    //       },
-    //     ],
-    //     customer_email: paymentInfo?.customer?.email,
-    //     mode: "payment",
-    //     metadata: {
-    //       clubId: paymentInfo?.clubId,
-    //       customer: paymentInfo?.customer.email,
-    //     },
-    //     success_url: `${process.env.CLIENT_DOMAIN}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
-    //     cancel_url: `${process.env.CLIENT_DOMAIN}/clubs/${paymentInfo?.clubId}`,
-    //   });
+      const session = await stripe.checkout.sessions.create({
+        line_items: [
+          {
+            price_data: {
+              currency: "usd",
+              product_data: {
+                name: paymentInfo?.clubName,
+                images: [paymentInfo?.bannerImage],
+              },
+              unit_amount: paymentInfo?.membershipFee * 100,
+            },
+            quantity: paymentInfo?.quantity,
+          },
+        ],
+        customer_email: paymentInfo?.customer?.email,
+        mode: "payment",
+        metadata: {
+          clubId: paymentInfo?.clubId,
+          customer: paymentInfo?.customer.email,
+        },
+        success_url: `${process.env.CLIENT_DOMAIN}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${process.env.CLIENT_DOMAIN}/clubs/${paymentInfo?.clubId}`,
+      });
 
-    //   res.send({ url: session.url });
-    // });
+      res.send({ url: session.url });
+    });
 
     // payment-success post api
-    // app.post("/payment-success", async (req, res) => {
-    //   const { sessionId } = req.body;
-    //   console.log("Received Session ID:", sessionId);
+    app.post("/payment-success", async (req, res) => {
+      const { sessionId } = req.body;
+      console.log("Received Session ID:", sessionId);
 
-    //   try {
-    //     const session = await stripe.checkout.sessions.retrieve(sessionId);
-    //     const clubIdString = session.metadata.clubId;
-    //     if (!clubIdString) {
-    //       return res
-    //         .status(400)
-    //         .send({ message: "Club ID missing in session metadata." });
-    //     }
-    //     const clubFilter = { _id: new ObjectId(clubIdString) };
-    //     const club = await clubsCollection.findOne(clubFilter);
-    //     if (!club) {
-    //       console.error(`Club not found for ID: ${clubIdString}`);
-    //       return res
-    //         .status(404)
-    //         .send({ message: "Club not found in database." });
-    //     }
-    //     const transactionId = session.payment_intent;
-    //     const existingPayment = await paymentsCollection.findOne({
-    //       transactionId,
-    //     });
-    //     const updateMembersCount = {
-    //       $inc: { membersCount: 1 },
-    //     };
+      try {
+        const session = await stripe.checkout.sessions.retrieve(sessionId);
+        const clubIdString = session.metadata.clubId;
+        if (!clubIdString) {
+          return res
+            .status(400)
+            .send({ message: "Club ID missing in session metadata." });
+        }
+        const clubFilter = { _id: new ObjectId(clubIdString) };
+        const club = await clubsCollection.findOne(clubFilter);
+        if (!club) {
+          console.error(`Club not found for ID: ${clubIdString}`);
+          return res
+            .status(404)
+            .send({ message: "Club not found in database." });
+        }
+        const transactionId = session.payment_intent;
+        const existingPayment = await paymentsCollection.findOne({
+          transactionId,
+        });
+        const updateMembersCount = {
+          $inc: { membersCount: 1 },
+        };
 
-    //     if (session.status === "complete") {
-    //       if (existingPayment) {
-    //         return res.send({
-    //           transactionId,
-    //           message: "Payment already recorded (Idempotency check).",
-    //         });
-    //       }
+        if (session.status === "complete") {
+          if (existingPayment) {
+            return res.send({
+              transactionId,
+              message: "Payment already recorded (Idempotency check).",
+            });
+          }
 
-    //       const payInfo = {
-    //         clubId: clubIdString,
-    //         transactionId,
-    //         customer: session.metadata.customer,
-    //         status: "paid",
-    //         name: club.clubName,
-    //         image: club.bannerImage,
-    //         quantity: 1,
-    //         price: session.amount_total / 100,
-    //         paymentDate: new Date(),
-    //       };
+          const payInfo = {
+            clubId: clubIdString,
+            transactionId,
+            customer: session.metadata.customer,
+            status: "paid",
+            name: club.clubName,
+            image: club.bannerImage,
+            quantity: 1,
+            price: session.amount_total / 100,
+            paymentDate: new Date(),
+          };
 
-    //       try {
-    //         const insertResult = await paymentsCollection.insertOne(payInfo);
-    //         await clubsCollection.updateOne(clubFilter, updateMembersCount);
-    //         return res.send({
-    //           transactionId,
-    //           orderId: insertResult.insertedId,
-    //           message:
-    //             "Payment recorded and club membership updated successfully.",
-    //         });
-    //       } catch (mongoError) {
-    //         if (mongoError.code === 11000) {
-    //           console.warn(
-    //             `Blocked duplicate transaction (E11000): ${transactionId}`
-    //           );
-    //           return res.send({
-    //             transactionId,
-    //             message:
-    //               "Payment already recorded (Duplicate call blocked by DB index).",
-    //           });
-    //         }
-    //         throw mongoError;
-    //       }
-    //     }
-    //     // pay error
-    //     return res.send({
-    //       transactionId,
-    //       message: "Payment not complete.",
-    //     });
-    //   } catch (error) {
-    //     console.error("Payment Success API Error:", error);
-    //     return res.status(500).send({
-    //       message: "Internal server error during payment processing.",
-    //     });
-    //   }
-    // });
+          try {
+            const insertResult = await paymentsCollection.insertOne(payInfo);
+            await clubsCollection.updateOne(clubFilter, updateMembersCount);
+            return res.send({
+              transactionId,
+              orderId: insertResult.insertedId,
+              message:
+                "Payment recorded and club membership updated successfully.",
+            });
+          } catch (mongoError) {
+            if (mongoError.code === 11000) {
+              console.warn(
+                `Blocked duplicate transaction (E11000): ${transactionId}`
+              );
+              return res.send({
+                transactionId,
+                message:
+                  "Payment already recorded (Duplicate call blocked by DB index).",
+              });
+            }
+            throw mongoError;
+          }
+        }
+        // pay error
+        return res.send({
+          transactionId,
+          message: "Payment not complete.",
+        });
+      } catch (error) {
+        console.error("Payment Success API Error:", error);
+        return res.status(500).send({
+          message: "Internal server error during payment processing.",
+        });
+      }
+    });
 
     //------- All ClubsApis --------//
     // create clubs
