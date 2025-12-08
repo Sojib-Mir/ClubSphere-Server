@@ -212,12 +212,12 @@ async function run() {
     });
 
     // get all single club from db
-    // app.get("/clubs/:id", async (req, res) => {
-    //   const id = req.params.id;
-    //   const objectId = { _id: new ObjectId(id) };
-    //   const result = await clubsCollection.findOne(objectId);
-    //   res.send(result);
-    // });
+    app.get("/clubs/:id", async (req, res) => {
+      const id = req.params.id;
+      const objectId = { _id: new ObjectId(id) };
+      const result = await clubsCollection.findOne(objectId);
+      res.send(result);
+    });
 
     // get all orders for a customer by email
     app.get("/my-orders", verifyJWT, async (req, res) => {
