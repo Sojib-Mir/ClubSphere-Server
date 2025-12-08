@@ -206,10 +206,10 @@ async function run() {
     });
 
     // get all clubs from db
-    // app.get("/clubs", async (req, res) => {
-    //   const result = await clubsCollection.find().toArray();
-    //   res.send(result);
-    // });
+    app.get("/clubs", async (req, res) => {
+      const result = await clubsCollection.find().toArray();
+      res.send(result);
+    });
 
     // get all single club from db
     // app.get("/clubs/:id", async (req, res) => {
