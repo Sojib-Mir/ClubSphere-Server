@@ -1,41 +1,102 @@
-[
-  {
-    "clubName": "The Green Canvas",
-    "description": "An art club promoting creativity through painting, sketching, and digital art. We organize exhibitions and open studio sessions every month for members.",
-    "category": "Arts & Culture",
-    "location": "Kalabagan, Chittagong",
-    "bannerImage": "https://i.ibb.co.com/xKZbk0kL/The-Green-Canvas.jpg",
-    "membershipFee": 100,
-    "status": "approved",
-    "managerEmail": "art@greencanvas.com",
-    "createdAt": "2025-02-01T09:00:00+06:00",
-    "clubId": "art003",
-    "membersCount": 85
-  },
-  {
-    "clubName": "Adventure Wheels BD",
-    "description": "A motorcycle touring club organizing weekend rides and long-distance expeditions across Bangladesh. Safety, camaraderie, and exploration are our core values.",
-    "category": "Sports & Outdoors",
-    "location": "Mirpur, Dhaka",
-    "bannerImage": "https://i.ibb.co.com/DDw7Gnhk/Adventure-Wheels-BD.jpg",
-    "membershipFee": 500,
-    "status": "approved",
-    "managerEmail": "ride@wheelsbd.com",
-    "createdAt": "2024-10-05T18:00:00+06:00",
-    "clubId": "ride004",
-    "membersCount": 65
-  },
-  {
-    "clubName": "Global Literature Circle",
-    "description": "A book club dedicated to exploring diverse global literature. We meet bi-weekly to discuss a chosen book, covering fiction, non-fiction, and poetry.",
-    "category": "Literature & Reading",
-    "location": "Online / Zoom",
-    "bannerImage": "https://i.ibb.co.com/0jjWMXnM/Global-Literature-Circle.jpg",
-    "membershipFee": 10,
-    "status": "approved",
-    "managerEmail": "books@globalreads.com",
-    "createdAt": "2025-03-10T14:00:00+06:00",
-    "clubId": "read005",
-    "membersCount": 150
+app.post('/create-checkout-session', async (req, res) => {
+
+      const paymentinfo = req.body
+      console.log(paymentinfo)
+
+      const session = await stripe.checkout.sessions.create({
+
+        line_items: [
+          {
+            price_data: {
+              currency: 'usd',
+              product_data: {
+                name: paymentinfo?.name,
+
+              },
+              unit_amount: paymentinfo?.price * 100
+            },
+            quantity: 1,
+          },
+        ],
+        customer_email: paymentinfo?.email,
+        mode: 'payment',
+        metadata: {
+          type: paymentinfo?.type,
+          status: paymentinfo?.status,
+          category: paymentinfo?.category,
+          clubId: paymentinfo?.clubId,
+          member: paymentinfo?.email
+          // 
+        },
+      //
+        success_url: ${process.env.DOMAIN}/payment-success?session_id={CHECKOUT_SESSION_ID},
+        cancel_url: ${process.env.DOMAIN}/payment-cancel/${paymentinfo?.clubId}
+      })
+
+     res.send({ url: session.url })
+    })
+
+
+app.post("/payment-success", async (req, res) => {
+  const { sessionId } = req.body;
+
+  const session = await stripe.checkout.sessions.retrieve(sessionId);
+
+  const transection = await membershipPayments.findOne({
+    transectionId: session.payment_intent,
+  });
+
+  if (transection) if (transection) return;
+
+  const plant = await clubsCollection.findOne({
+    _id: new ObjectId(session.metadata.clubId),
+  });
+
+  if (session.status === "complete" || plant) {
+    const orderinfo = {
+      clubId: session.metadata.clubId,
+      transectionId: session.payment_intent,
+      member: session.metadata.member,
+      status: "paid",
+      price: session.amount_total / 100,
+      name: plant?.clubName,
+      club: {
+        ...plant,
+      },
+    };
+
+    orderinfo.created_At = new Date().toLocaleDateString();
+
+    console.log("orderinformation", orderinfo);
+    const result = await membershipPayments.insertOne(orderinfo);
+
+    return res.send(result);
   }
-]
+
+  return res.send({
+    transectionId: session.payment_intent,
+    orderId: transection._id,
+  });
+});
+
+
+// _id
+// 69369e47c2a325b31e3861bd
+// clubId
+// "67c5a001c101a1a1a0010015"
+// transectionId
+// "pi_3Sc10oGkNDeErJi71YDqwYHJ"
+// member
+// "omor12@gmail.com"
+// status
+// "paid"
+// price
+// 20
+// name
+// "Gamers Hub"
+
+// club
+// Object
+
+// created_At
+// "12/8/2025"
