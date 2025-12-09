@@ -206,11 +206,12 @@ async function run() {
       }
     });
 
-    // app.get("/memberships", async (req, res) => {
-    //   const result = await membershipsCollection.find().toArray();
-    //   res.send(result);
-    // });
+    app.get("/memberships", async (req, res) => {
+      const result = await membershipsCollection.find().toArray();
+      res.send(result);
+    });
 
+   
     app.get("/memberships/:id", async (req, res) => {
       const clubId = req.params.id;
       const membarEmail = req.query.email;
