@@ -182,29 +182,29 @@ async function run() {
     });
 
     //-------------Membarship apis------------\\
-    // app.post("/memberships", async (req, res) => {
-    //   const paymentData = req.body;
-    //   const query = {
-    //     clubId: paymentData.clubId,
-    //     membar: paymentData.membar,
-    //   };
+    app.post("/memberships", async (req, res) => {
+      const paymentData = req.body;
+      const query = {
+        clubId: paymentData.clubId,
+        membar: paymentData.membar,
+      };
 
-    //   try {
-    //     // Existing Membership Check
-    //     const isExistMembership = await membershipsCollection.findOne(query);
-    //     if (isExistMembership) {
-    //       return res.send({
-    //         message: "You have already joined this club.",
-    //       });
-    //     }
+      try {
+        // Existing Membership Check
+        const isExistMembership = await membershipsCollection.findOne(query);
+        if (isExistMembership) {
+          return res.send({
+            message: "You have already joined this club.",
+          });
+        }
 
-    //     // Insert New Membership
-    //     const result = await membershipsCollection.insertOne(paymentData);
-    //     res.send(result);
-    //   } catch (error) {
-    //     res.send({ message: "An internal server error occurred." });
-    //   }
-    // });
+        // Insert New Membership
+        const result = await membershipsCollection.insertOne(paymentData);
+        res.send(result);
+      } catch (error) {
+        res.send({ message: "An internal server error occurred." });
+      }
+    });
 
     // app.get("/memberships", async (req, res) => {
     //   const result = await membershipsCollection.find().toArray();
