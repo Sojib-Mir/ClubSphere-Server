@@ -49,6 +49,7 @@ async function run() {
     const db = client.db("clubSphere_db");
     const usersCollection = db.collection("users");
     const eventsCollection = db.collection("events");
+    const eventRegisterCollection = db.collection("eventRegister");
     const clubsCollection = db.collection("clubs");
     const managerRequestsCollection = db.collection("managerRequests");
     const paymentsCollection = db.collection("payments");
@@ -68,16 +69,16 @@ async function run() {
     // };
 
     // Manager's middleware
-    // const verifyMANAGER = async (req, res, next) => {
-    //   const email = req.tokenEmail;
-    //   const user = await usersCollection.findOne({ email });
-    //   if (user?.role !== "manager")
-    //     return res
-    //       .status(403)
-    //       .send({ message: "Manager only Actions!", role: user?.role });
+    const verifyMANAGER = async (req, res, next) => {
+      const email = req.tokenEmail;
+      const user = await usersCollection.findOne({ email });
+      if (user?.role !== "manager")
+        return res
+          .status(403)
+          .send({ message: "Manager only Actions!", role: user?.role });
 
-    //   next();
-    // };
+      next();
+    };
 
     //------- Payment Related Apis --------//
     app.post("/create-checkout-session", async (req, res) => {
@@ -211,7 +212,6 @@ async function run() {
       res.send(result);
     });
 
-   
     app.get("/memberships/:id", async (req, res) => {
       const clubId = req.params.id;
       const membarEmail = req.query.email;
@@ -224,19 +224,32 @@ async function run() {
       res.send(result);
     });
 
-    // app.get("/memberships/:id", async (req, res) => {
-    //   const id = req.params.id;
-    //   const objectId = { _id: new ObjectId(id) };
-    //   const result = await membershipsCollection.findOne(objectId);
+    //------- All ClubsApis --------//
+    // create clubs
+    // app.post("/clubs", async (req, res) => {
+    //   const clubData = req.body;
+    //   const result = await clubsCollection.insertOne(clubData);
     //   res.send(result);
     // });
 
-    //------- All ClubsApis --------//
-    // create clubs
-   
-   
     app.post("/clubs", async (req, res) => {
       const clubData = req.body;
+      const lastClub = await clubsCollection
+        .find()
+        .sort({ clubId: -1 })
+        .limit(1)
+        .toArray();
+
+      let nextId;
+
+      if (lastClub.length === 0) {
+        nextId = 1000;
+      } else {
+        nextId = lastClub[0].clubId + 1;
+      }
+
+      clubData.clubId = nextId;
+
       const result = await clubsCollection.insertOne(clubData);
       res.send(result);
     });
@@ -255,16 +268,154 @@ async function run() {
       res.send(result);
     });
 
-    // get all orders for a customer by email
-    app.get("/my-orders", verifyJWT, async (req, res) => {
-      const result = await ordersCollection
-        .find({ customer: req.tokenEmail })
+    //------- All Events Apis --------//
+    // create events
+    app.post("/events", async (req, res) => {
+      const eventData = req.body;
+      const result = await eventsCollection.insertOne(eventData);
+      res.send(result);
+    });
+
+    // get all events from db
+    app.get("/events", async (req, res) => {
+      const result = await eventsCollection.find().toArray();
+      res.send(result);
+    });
+
+    // get all single event from db
+    app.get("/events/:id", async (req, res) => {
+      const id = req.params.id;
+      const objectId = { _id: new ObjectId(id) };
+      const result = await eventsCollection.findOne(objectId);
+      res.send(result);
+    });
+
+    //------- All Events Register Apis --------//
+    // create eventRegister
+    app.post("/event-register", async (req, res) => {
+      const eventRegisterData = req.body;
+      const result = await eventRegisterCollection.insertOne(eventRegisterData);
+      res.send(result);
+    });
+
+    // get all eventRegister from db
+    app.get("/event-register", async (req, res) => {
+      const result = await eventRegisterCollection.find().toArray();
+      res.send(result);
+    });
+
+    // get all single eventRegister from db
+    app.get("/event-register/:id", async (req, res) => {
+      const eventId = req.params.id;
+      const userEmail = req.query.email;
+      const query = {
+        eventId: eventId,
+        userEmail: userEmail,
+      };
+
+      const result = await eventRegisterCollection.findOne(query);
+      res.send(result);
+    });
+
+    //------- All Payments Apis --------//
+
+    // get all payments from db
+    app.get("/payments", async (req, res) => {
+      const result = await paymentsCollection.find().toArray();
+      res.send(result);
+    });
+
+    // get all single payment from db
+    app.get("/payments/:id", async (req, res) => {
+      const id = req.params.id;
+      const customer = req.query.email;
+      const query = {
+        id: id,
+        customer: customer,
+      };
+
+      const result = await paymentsCollection.findOne(query);
+      res.send(result);
+    });
+
+    // my-club
+    app.get("/my-clubs", async (req, res) => {
+      const customer = req.query.email;
+      const myClubsData = await paymentsCollection.find({ customer }).toArray();
+      res.send(myClubsData);
+    });
+
+    // my-event
+    app.get("/my-events", async (req, res) => {
+      const userEmail = req.query.email;
+      const myClubsData = await eventRegisterCollection
+        .find({ userEmail })
+        .toArray();
+      res.send(myClubsData);
+    });
+
+    // all payment-history for only admin
+    app.get("/payment-history", async (req, res) => {
+      const paymentHistory = await paymentsCollection.find().toArray();
+      res.send(paymentHistory);
+    });
+
+    // my-payment-history
+    app.get("/my-payment-history", async (req, res) => {
+      const customer = req.query.email;
+      const myClubsData = await paymentsCollection.find({ customer }).toArray();
+      res.send(myClubsData);
+    });
+
+    // get all clubs for a manager by email
+    app.get("/manage-clubs", verifyJWT, verifyMANAGER, async (req, res) => {
+      const result = await clubsCollection
+        .find({ managerEmail: req.tokenEmail })
         .toArray();
       res.send(result);
     });
 
+    // update single club data
+    app.patch(
+      "/manage-clubs/:id",
+      verifyJWT,
+      verifyMANAGER,
+      async (req, res) => {
+        try {
+          const id = req.params.id;
+          const updatedClubData = req.body;
+          const query = { _id: new ObjectId(id) };
+
+          // যদি clubsCollection এ 'managerEmail' ফিল্ড থাকে, তবে ক্যোয়ারিটি হবে:
+          // const query = { _id: new ObjectId(id), managerEmail: req.tokenEmail };
+
+          const updateDoc = {
+            $set: {
+              ...updatedClubData,
+              updatedAt: new Date(),
+            },
+          };
+
+          // ৪. ডেটাবেসে আপডেট করা
+          const result = await clubsCollection.updateOne(query, updateDoc);
+
+          if (result.matchedCount === 0) {
+            return res.status(404).send({
+              message:
+                "Club not found or you are not authorized to update this club.",
+            });
+          }
+
+          res.send(result);
+        } catch (error) {
+          console.error("Error updating club:", error);
+          res.status(500).send({ message: "Failed to update club.", error });
+        }
+      }
+    );
+
     // get all orders for a seller by email
-    app.get("/manage-orders/:email", verifyJWT, async (req, res) => {
+    app.get("/manage-clubs/:email", verifyJWT, async (req, res) => {
       const email = req.params.email;
       const result = await ordersCollection
         .find({ "seller.email": email })
@@ -320,25 +471,24 @@ async function run() {
       res.send({ role: result?.role });
     });
 
-    // save become-seller request
-    app.post("/become-seller", verifyJWT, async (req, res) => {
+    // save become-manager request
+    app.post("/become-manager", verifyJWT, async (req, res) => {
       const email = req.tokenEmail;
 
-      // check request seller
-      const alreadyExists = await sellerRequestsCollection.findOne({ email });
+      // check request manager
+      const alreadyExists = await managerRequestsCollection.findOne({ email });
       if (alreadyExists) {
         return res
           .status(409)
           .send({ message: "Already requested, Please wait sometimes!" });
       }
-
-      const result = await sellerRequestsCollection.insertOne({ email });
+      const result = await managerRequestsCollection.insertOne({ email });
       res.send(result);
     });
 
-    // get all seller requests for admin
-    app.get("/seller-requests", verifyJWT, async (req, res) => {
-      const result = await sellerRequestsCollection.find().toArray();
+    // get all manager requests for admin
+    app.get("/manager-requests", verifyJWT, async (req, res) => {
+      const result = await managerRequestsCollection.find().toArray();
       res.send(result);
     });
 
@@ -357,10 +507,6 @@ async function run() {
         { email },
         { $set: { role } }
       );
-
-      // delete seller request to sellerCollertion
-      await sellerRequestsCollection.deleteOne({ email });
-
       res.send(result);
     });
 
