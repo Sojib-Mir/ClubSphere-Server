@@ -122,23 +122,14 @@ async function run() {
     app.post("/payment-success", async (req, res) => {
       const { sessionId } = req.body;
 
-      console.log("Received Session ID:", sessionId);
-
       try {
         const session = await stripe.checkout.sessions.retrieve(sessionId);
-
         const transactionId = session.payment_intent;
-
         const clubId = { _id: new ObjectId(session?.metadata?.clubId) };
 
-        const existQuery = {
-          clubId,
-          customer: session?.metadata?.customer,
-        };
-
-        console.log("Existing info==========>>>>>", existQuery);
-
-        const existingPayment = await paymentsCollection.findOne(existQuery);
+        const existingPayment = await paymentsCollection.findOne({
+          transactionId,
+        });
 
         if (existingPayment) {
           return res.send({
@@ -268,8 +259,34 @@ async function run() {
       res.send(result);
     });
 
-    //------- All Events Apis --------//
-    // create events
+    app.delete("/clubs/:id", async (req, res) => {
+      const id = req.params.id;
+
+      try {
+        const objectId = { _id: new ObjectId(id) };
+        const result = await clubsCollection.deleteOne(objectId);
+
+        if (result.deletedCount === 1) {
+          res.send({ success: true, message: "Club deleted successfully." });
+        } else {
+          res.status(404).send({ success: false, message: "Club not found." });
+        }
+      } catch (error) {
+        if (error.name === "BSONError" || error.name === "CastError") {
+          console.error("BSON or Invalid ID Error:", error.message);
+          return res
+            .status(400)
+            .send({ success: false, message: "Provided ID is invalid." });
+        }
+
+        console.error("Server Delete Error:", error);
+        res.status(500).send({
+          success: false,
+          message: "Internal Server Error occurred during deletion.",
+        });
+      }
+    });
+
     app.post("/events", async (req, res) => {
       const eventData = req.body;
       const result = await eventsCollection.insertOne(eventData);
@@ -288,6 +305,34 @@ async function run() {
       const objectId = { _id: new ObjectId(id) };
       const result = await eventsCollection.findOne(objectId);
       res.send(result);
+    });
+
+    app.delete("/events/:id", async (req, res) => {
+      const id = req.params.id;
+
+      try {
+        const objectId = { _id: new ObjectId(id) };
+        const result = await eventsCollection.deleteOne(objectId);
+
+        if (result.deletedCount === 1) {
+          res.send({ success: true, message: "Event deleted successfully." });
+        } else {
+          res.status(404).send({ success: false, message: "Event not found." });
+        }
+      } catch (error) {
+        if (error.name === "BSONError" || error.name === "CastError") {
+          console.error("BSON or Invalid ID Error:", error.message);
+          return res
+            .status(400)
+            .send({ success: false, message: "Provided ID is invalid." });
+        }
+
+        console.error("Server Delete Error:", error);
+        res.status(500).send({
+          success: false,
+          message: "Internal Server Error occurred during deletion.",
+        });
+      }
     });
 
     //------- All Events Register Apis --------//
@@ -386,17 +431,12 @@ async function run() {
           const updatedClubData = req.body;
           const query = { _id: new ObjectId(id) };
 
-          // যদি clubsCollection এ 'managerEmail' ফিল্ড থাকে, তবে ক্যোয়ারিটি হবে:
-          // const query = { _id: new ObjectId(id), managerEmail: req.tokenEmail };
-
           const updateDoc = {
             $set: {
               ...updatedClubData,
-              updatedAt: new Date(),
             },
           };
 
-          // ৪. ডেটাবেসে আপডেট করা
           const result = await clubsCollection.updateOne(query, updateDoc);
 
           if (result.matchedCount === 0) {
@@ -413,6 +453,58 @@ async function run() {
         }
       }
     );
+
+    // get all events for a manager by email
+    app.get("/manage-events", verifyJWT, verifyMANAGER, async (req, res) => {
+      console.log("Token Email:", req.tokenEmail); // JWT থেকে আসা ইমেল চেক করুন
+      const result = await eventsCollection
+        .find({ managerEmail: req.tokenEmail })
+        .toArray();
+      console.log("Found Events:", result.length); // কতগুলো ইভেন্ট পাওয়া গেল
+      res.send(result);
+    });
+
+    // update single event data
+    app.patch(
+      "/manage-events/:id",
+      verifyJWT,
+      verifyMANAGER,
+      async (req, res) => {
+        try {
+          const id = req.params.id;
+          const updatedEventData = req.body;
+          const query = { _id: new ObjectId(id) };
+
+          const updateDoc = {
+            $set: {
+              ...updatedEventData,
+            },
+          };
+
+          const result = await eventsCollection.updateOne(query, updateDoc);
+
+          if (result.matchedCount === 0) {
+            return res.status(404).send({
+              message:
+                "Event not found or you are not authorized to update this event.",
+            });
+          }
+
+          res.send(result);
+        } catch (error) {
+          console.error("Error updating event:", error);
+          res.status(500).send({ message: "Failed to update event.", error });
+        }
+      }
+    );
+
+    // get all events for a manager by email
+    app.get("/manage-events", verifyJWT, verifyMANAGER, async (req, res) => {
+      const result = await eventsCollection
+        .find({ managerEmail: req.tokenEmail })
+        .toArray();
+      res.send(result);
+    });
 
     // get all orders for a seller by email
     app.get("/manage-clubs/:email", verifyJWT, async (req, res) => {
