@@ -249,6 +249,16 @@ async function run() {
       res.send(result);
     });
 
+    // get recent 8 clubs data from db
+    app.get("/recent-clubs", async (req, res) => {
+      const result = await clubsCollection
+        .find()
+        .sort({ createdAt: -1 })
+        .limit(8)
+        .toArray();
+      res.send(result);
+    });
+
     // get single club data from db
     app.get("/clubs/:id", async (req, res) => {
       const id = req.params.id;
