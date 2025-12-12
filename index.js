@@ -81,6 +81,7 @@ async function run() {
     };
 
     //------- Payment Related Apis --------//
+    // payment-create api
     app.post("/create-checkout-session", async (req, res) => {
       const paymentInfo = req.body;
 
@@ -118,7 +119,7 @@ async function run() {
       res.send({ url: session.url });
     });
 
-    // payment-success post api
+    // create payment-success api
     app.post("/payment-success", async (req, res) => {
       const { sessionId } = req.body;
 
@@ -174,6 +175,7 @@ async function run() {
     });
 
     //-------------Membarship apis------------\\
+    // create membership data from db
     app.post("/memberships", async (req, res) => {
       const paymentData = req.body;
       const query = {
@@ -198,11 +200,13 @@ async function run() {
       }
     });
 
+    // get membership data from db
     app.get("/memberships", async (req, res) => {
       const result = await membershipsCollection.find().toArray();
       res.send(result);
     });
 
+    // get membership single data from db
     app.get("/memberships/:id", async (req, res) => {
       const clubId = req.params.id;
       const membarEmail = req.query.email;
@@ -216,13 +220,7 @@ async function run() {
     });
 
     //------- All ClubsApis --------//
-    // create clubs
-    // app.post("/clubs", async (req, res) => {
-    //   const clubData = req.body;
-    //   const result = await clubsCollection.insertOne(clubData);
-    //   res.send(result);
-    // });
-
+    // create clubs data from db
     app.post("/clubs", async (req, res) => {
       const clubData = req.body;
       const lastClub = await clubsCollection
@@ -245,13 +243,13 @@ async function run() {
       res.send(result);
     });
 
-    // get all clubs from db
+    // get all clubs data from db
     app.get("/clubs", async (req, res) => {
       const result = await clubsCollection.find().toArray();
       res.send(result);
     });
 
-    // get all single club from db
+    // get single club data from db
     app.get("/clubs/:id", async (req, res) => {
       const id = req.params.id;
       const objectId = { _id: new ObjectId(id) };
@@ -259,6 +257,7 @@ async function run() {
       res.send(result);
     });
 
+    // delete single club data from db
     app.delete("/clubs/:id", async (req, res) => {
       const id = req.params.id;
 
@@ -287,6 +286,7 @@ async function run() {
       }
     });
 
+    // create event data from db
     app.post("/events", async (req, res) => {
       const eventData = req.body;
       const result = await eventsCollection.insertOne(eventData);
@@ -299,7 +299,7 @@ async function run() {
       res.send(result);
     });
 
-    // get all single event from db
+    // get single event data from db
     app.get("/events/:id", async (req, res) => {
       const id = req.params.id;
       const objectId = { _id: new ObjectId(id) };
@@ -307,6 +307,7 @@ async function run() {
       res.send(result);
     });
 
+    // delete single data event from db
     app.delete("/events/:id", async (req, res) => {
       const id = req.params.id;
 
@@ -383,14 +384,14 @@ async function run() {
       res.send(result);
     });
 
-    // my-club
+    // get my-club
     app.get("/my-clubs", async (req, res) => {
       const customer = req.query.email;
       const myClubsData = await paymentsCollection.find({ customer }).toArray();
       res.send(myClubsData);
     });
 
-    // my-event
+    // get my-event
     app.get("/my-events", async (req, res) => {
       const userEmail = req.query.email;
       const myClubsData = await eventRegisterCollection
@@ -399,13 +400,13 @@ async function run() {
       res.send(myClubsData);
     });
 
-    // all payment-history for only admin
+    // get all payment-history for only admin
     app.get("/payment-history", async (req, res) => {
       const paymentHistory = await paymentsCollection.find().toArray();
       res.send(paymentHistory);
     });
 
-    // my-payment-history
+    // get my-payment-history
     app.get("/my-payment-history", async (req, res) => {
       const customer = req.query.email;
       const myClubsData = await paymentsCollection.find({ customer }).toArray();
@@ -456,11 +457,10 @@ async function run() {
 
     // get all events for a manager by email
     app.get("/manage-events", verifyJWT, verifyMANAGER, async (req, res) => {
-      console.log("Token Email:", req.tokenEmail); // JWT থেকে আসা ইমেল চেক করুন
       const result = await eventsCollection
         .find({ managerEmail: req.tokenEmail })
         .toArray();
-      console.log("Found Events:", result.length); // কতগুলো ইভেন্ট পাওয়া গেল
+
       res.send(result);
     });
 
@@ -498,16 +498,45 @@ async function run() {
       }
     );
 
-    // get all events for a manager by email
-    app.get("/manage-events", verifyJWT, verifyMANAGER, async (req, res) => {
-      const result = await eventsCollection
+    // get all memberships in club for a manager by email
+    app.get(
+      "/manage-memberships",
+      verifyJWT,
+      verifyMANAGER,
+      async (req, res) => {
+        const result = await membershipsCollection
+          .find({ managerEmail: req.tokenEmail })
+          .toArray();
+        res.send(result);
+      }
+    );
+
+    // delete all single memberships in club for a manager by email
+    app.delete("/manage-memberships/:id", async (req, res) => {
+      const id = req.params.id;
+      const objectId = { _id: new ObjectId(id) };
+      const result = await membershipsCollection.deleteOne(objectId);
+      res.send(result);
+    });
+
+    // get all Event Register data for a manager by email
+    app.get("/event-register", verifyJWT, verifyMANAGER, async (req, res) => {
+      const result = await eventRegisterCollection
         .find({ managerEmail: req.tokenEmail })
         .toArray();
       res.send(result);
     });
 
+    // delelte all single Event Register data for a manager by email
+    app.delete("/event-register/:id", async (req, res) => {
+      const id = req.params.id;
+      const objectId = { _id: new ObjectId(id) };
+      const result = await eventRegisterCollection.deleteOne(objectId);
+      res.send(result);
+    });
+
     // get all orders for a seller by email
-    app.get("/manage-clubs/:email", verifyJWT, async (req, res) => {
+    app.get("/order-clubs/:email", verifyJWT, async (req, res) => {
       const email = req.params.email;
       const result = await ordersCollection
         .find({ "seller.email": email })
