@@ -85,8 +85,6 @@ async function run() {
     app.post("/create-checkout-session", async (req, res) => {
       const paymentInfo = req.body;
 
-      console.log("Payment info=====>", paymentInfo);
-
       const session = await stripe.checkout.sessions.create({
         line_items: [
           {
@@ -145,7 +143,7 @@ async function run() {
           const payInfo = {
             transactionId,
             customer: session.metadata.customer,
-            status: "paid",
+            status: "Paid",
             name: club?.clubName,
             image: club?.bannerImage,
             price: session.amount_total / 100,
@@ -155,10 +153,7 @@ async function run() {
             },
           };
 
-          console.log(payInfo);
-
           const result = await paymentsCollection.insertOne(payInfo);
-
           return res.send(result);
         }
         // pay error
@@ -605,7 +600,6 @@ async function run() {
     // save become-manager request
     app.post("/become-manager", verifyJWT, async (req, res) => {
       const email = req.tokenEmail;
-
       // check request manager
       const alreadyExists = await managerRequestsCollection.findOne({ email });
       if (alreadyExists) {
