@@ -57,16 +57,16 @@ async function run() {
 
     //-------Role Middleware-------\\
     // admin's middleware
-    // const verifyADMIN = async (req, res, next) => {
-    //   const email = req.tokenEmail;
-    //   const user = await usersCollection.findOne({ email });
-    //   if (user?.role !== "admin")
-    //     return res
-    //       .status(403)
-    //       .send({ message: "Admin only Actions!", role: user?.role });
+    const verifyADMIN = async (req, res, next) => {
+      const email = req.tokenEmail;
+      const user = await usersCollection.findOne({ email });
+      if (user?.role !== "admin")
+        return res
+          .status(403)
+          .send({ message: "Admin only Actions!", role: user?.role });
 
-    //   next();
-    // };
+      next();
+    };
 
     // Manager's middleware
     const verifyMANAGER = async (req, res, next) => {
@@ -196,7 +196,7 @@ async function run() {
     });
 
     // get membership data from db
-    app.get("/memberships", async (req, res) => {
+    app.get("/memberships", verifyJWT, verifyMANAGER, async (req, res) => {
       const result = await membershipsCollection.find().toArray();
       res.send(result);
     });
@@ -240,14 +240,36 @@ async function run() {
 
     // get all clubs data from db
     app.get("/clubs", async (req, res) => {
-      const result = await clubsCollection.find().toArray();
-      res.send(result);
+      const { status, search, filter } = req.query;
+      const queryFilter = {};
+
+      if (status) {
+        queryFilter.status = status;
+      }
+
+      if (filter) {
+        queryFilter.category = filter;
+      }
+
+      if (search) {
+        queryFilter.clubName = { $regex: search, $options: "i" };
+      }
+
+      try {
+        const result = await clubsCollection.find(queryFilter).toArray();
+
+        res.send(result);
+      } catch (error) {
+        console.error("Error fetching clubs:", error);
+        res.status(500).send({ message: "Failed to fetch club data" });
+      }
     });
 
     // get recent 8 clubs data from db
-    app.get("/recent-clubs", async (req, res) => {
+    app.get("/recent-clubs", verifyJWT, async (req, res) => {
+      const status = req.query.status;
       const result = await clubsCollection
-        .find()
+        .find({ status })
         .sort({ createdAt: -1 })
         .limit(8)
         .toArray();
@@ -300,8 +322,20 @@ async function run() {
 
     // get all events from db
     app.get("/events", async (req, res) => {
-      const result = await eventsCollection.find().toArray();
-      res.send(result);
+      const { search } = req.query;
+      const queryFilter = {};
+
+      if (search) {
+        queryFilter.title = { $regex: search, $options: "i" };
+      }
+
+      try {
+        const result = await eventsCollection.find(queryFilter).toArray();
+        res.send(result);
+      } catch (error) {
+        console.error("Error fetching events:", error);
+        res.status(500).send({ message: "Failed to fetch events data" });
+      }
     });
 
     // get single event data from db
@@ -345,12 +379,26 @@ async function run() {
     // create eventRegister
     app.post("/event-register", async (req, res) => {
       const eventRegisterData = req.body;
+      const { userEmail, eventId } = eventRegisterData;
+
+      const existingRegistration = await eventRegisterCollection.findOne({
+        userEmail: userEmail,
+        eventId: eventId,
+      });
+
+      if (existingRegistration) {
+        return res.status(400).send({
+          message: "You have already registered for this event.",
+          success: false,
+        });
+      }
+
       const result = await eventRegisterCollection.insertOne(eventRegisterData);
       res.send(result);
     });
 
     // get all eventRegister from db
-    app.get("/event-register", async (req, res) => {
+    app.get("/event-register", verifyJWT, async (req, res) => {
       const result = await eventRegisterCollection.find().toArray();
       res.send(result);
     });
@@ -369,9 +417,8 @@ async function run() {
     });
 
     //------- All Payments Apis --------//
-
     // get all payments from db
-    app.get("/payments", async (req, res) => {
+    app.get("/payments", verifyJWT, async (req, res) => {
       const result = await paymentsCollection.find().toArray();
       res.send(result);
     });
@@ -390,14 +437,14 @@ async function run() {
     });
 
     // get my-club
-    app.get("/my-clubs", async (req, res) => {
+    app.get("/my-clubs", verifyJWT, async (req, res) => {
       const customer = req.query.email;
       const myClubsData = await paymentsCollection.find({ customer }).toArray();
       res.send(myClubsData);
     });
 
     // get my-event
-    app.get("/my-events", async (req, res) => {
+    app.get("/my-events", verifyJWT, async (req, res) => {
       const userEmail = req.query.email;
       const myClubsData = await eventRegisterCollection
         .find({ userEmail })
@@ -405,14 +452,8 @@ async function run() {
       res.send(myClubsData);
     });
 
-    // get all payment-history for only admin
-    app.get("/payment-history", async (req, res) => {
-      const paymentHistory = await paymentsCollection.find().toArray();
-      res.send(paymentHistory);
-    });
-
     // get my-payment-history
-    app.get("/my-payment-history", async (req, res) => {
+    app.get("/my-payment-history", verifyJWT, async (req, res) => {
       const customer = req.query.email;
       const myClubsData = await paymentsCollection.find({ customer }).toArray();
       res.send(myClubsData);
@@ -525,7 +566,7 @@ async function run() {
     });
 
     // get all Event Register data for a manager by email
-    app.get("/event-register", verifyJWT, verifyMANAGER, async (req, res) => {
+    app.get("/register-event", verifyJWT, verifyMANAGER, async (req, res) => {
       const result = await eventRegisterCollection
         .find({ managerEmail: req.tokenEmail })
         .toArray();
@@ -533,36 +574,14 @@ async function run() {
     });
 
     // delelte all single Event Register data for a manager by email
-    app.delete("/event-register/:id", async (req, res) => {
+    app.delete("/register-event/:id", async (req, res) => {
       const id = req.params.id;
       const objectId = { _id: new ObjectId(id) };
       const result = await eventRegisterCollection.deleteOne(objectId);
       res.send(result);
     });
 
-    // get all orders for a seller by email
-    app.get("/order-clubs/:email", verifyJWT, async (req, res) => {
-      const email = req.params.email;
-      const result = await ordersCollection
-        .find({ "seller.email": email })
-        .toArray();
-      res.send(result);
-    });
-
-    // get all plants for a seller by email
-    app.get(
-      "/my-inventory/:email",
-      verifyJWT,
-
-      async (req, res) => {
-        const email = req.params.email;
-        const result = await plantsCollection
-          .find({ "seller.email": email })
-          .toArray();
-        res.send(result);
-      }
-    );
-
+    //-----------------USER INFO---------------------\\
     // save or update a user in db
     app.post("/user", async (req, res) => {
       const userData = req.body;
@@ -597,7 +616,8 @@ async function run() {
       res.send({ role: result?.role });
     });
 
-    // save become-manager request
+    //-----------------ONLY ADMIN ACCESS APIS---------------------\\
+    // save become-manager request for only admin
     app.post("/become-manager", verifyJWT, async (req, res) => {
       const email = req.tokenEmail;
       // check request manager
@@ -611,27 +631,59 @@ async function run() {
       res.send(result);
     });
 
-    // get all manager requests for admin
-    app.get("/manager-requests", verifyJWT, async (req, res) => {
+    // get all manager requests for only admin
+    app.get("/manager-requests", verifyJWT, verifyADMIN, async (req, res) => {
       const result = await managerRequestsCollection.find().toArray();
       res.send(result);
     });
 
-    // get all users for admin
-    app.get("/users", verifyJWT, async (req, res) => {
+    // get all payment-history for only admin
+    app.get("/payment-history", verifyJWT, verifyADMIN, async (req, res) => {
+      const paymentHistory = await paymentsCollection.find().toArray();
+      res.send(paymentHistory);
+    });
+
+    // get all users for only admin
+    app.get("/users", verifyJWT, verifyADMIN, async (req, res) => {
       const adminEmail = req.tokenEmail;
       const query = { email: { $ne: adminEmail } };
       const result = await usersCollection.find(query).toArray();
       res.send(result);
     });
 
-    // update a user's role
-    app.patch("/update-role", verifyJWT, async (req, res) => {
+    // update a user's role only admin
+    app.patch("/update-role", verifyJWT, verifyADMIN, async (req, res) => {
       const { email, role } = req.body;
-      const result = await usersCollection.updateOne(
-        { email },
-        { $set: { role } }
+
+      const updateRoleResult = await usersCollection.updateOne(
+        { email: email },
+        { $set: { role: role } }
       );
+
+      await managerRequestsCollection.deleteOne({
+        email: email,
+      });
+
+      res.send(updateRoleResult);
+    });
+
+    // update a club's approved only admin
+    app.patch("/club-approved", verifyJWT, verifyADMIN, async (req, res) => {
+      const { managerEmail, status, clubId } = req.body;
+
+      const filter = {
+        managerEmail: managerEmail,
+        clubId: clubId,
+      };
+
+      const updateClub = {
+        $set: { status: status },
+      };
+
+      const result = await clubsCollection.updateOne(filter, updateClub);
+
+      console.log(result);
+
       res.send(result);
     });
 
@@ -645,9 +697,9 @@ async function run() {
 run().catch(console.dir);
 
 app.get("/", (req, res) => {
-  res.send("Club Server is Running....");
+  res.send("Clubs Phere Server is Running....");
 });
 
 app.listen(port, () => {
-  console.log(`Club Server is running on port ${port}`);
+  console.log(`Clubs Phere Server is Running on Port ${port}`);
 });
