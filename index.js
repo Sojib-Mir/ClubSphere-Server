@@ -239,7 +239,7 @@ async function run() {
     });
 
     // get all clubs data from db
-    app.get("/clubs", verifyJWT, async (req, res) => {
+    app.get("/clubs", async (req, res) => {
       const { status, search, filter } = req.query;
       const queryFilter = {};
 
@@ -266,7 +266,7 @@ async function run() {
     });
 
     // get recent 8 clubs data from db
-    app.get("/recent-clubs", verifyJWT, async (req, res) => {
+    app.get("/recent-clubs", async (req, res) => {
       const status = req.query.status;
       const result = await clubsCollection
         .find({ status })
@@ -321,7 +321,7 @@ async function run() {
     });
 
     // get all events from db
-    app.get("/events", verifyJWT, async (req, res) => {
+    app.get("/events", async (req, res) => {
       const { search } = req.query;
       const queryFilter = {};
 
