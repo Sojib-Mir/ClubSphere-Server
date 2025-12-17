@@ -15,11 +15,18 @@ admin.initializeApp({
 // middleware
 app.use(
   cors({
-    origin: [process.env.CLIENT_DOMAIN],
-    credentials: true,
+    origin: ["http://localhost:5173"], // Your frontend URL
+    credentials: true, // Allows the browser to send cookies/headers
     optionSuccessStatus: 200,
   })
 );
+// app.use(
+//   cors({
+//     origin: [process.env.CLIENT_DOMAIN],
+//     credentials: true,
+//     optionSuccessStatus: 200,
+//   })
+// );
 app.use(express.json());
 
 // jwt middlewares
@@ -173,9 +180,10 @@ async function run() {
     // create membership data from db
     app.post("/memberships", async (req, res) => {
       const paymentData = req.body;
+
       const query = {
         clubId: paymentData.clubId,
-        membar: paymentData.membar,
+        userEmail: paymentData.userEmail,
       };
 
       try {
