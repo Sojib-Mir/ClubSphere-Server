@@ -15,18 +15,11 @@ admin.initializeApp({
 // middleware
 app.use(
   cors({
-    origin: ["http://localhost:5173"], // Your frontend URL
-    credentials: true, // Allows the browser to send cookies/headers
+    origin: [process.env.CLIENT_DOMAIN],
+    credentials: true,
     optionSuccessStatus: 200,
   })
 );
-// app.use(
-//   cors({
-//     origin: [process.env.CLIENT_DOMAIN],
-//     credentials: true,
-//     optionSuccessStatus: 200,
-//   })
-// );
 app.use(express.json());
 
 // jwt middlewares
